@@ -1,0 +1,14 @@
+===
+--title: 
+--date: "{{ now }}"
+--append-message:
+===
+# {{ title }}
+{%- if subtitle %}
+##{{subtitle}} 
+{%- endif %}
+{% block body %}
+content...
+{% endblock %} {{ append_message }}
+
+{% include "footer.md" %}

@@ -1,0 +1,17 @@
+===
+--title: Thank You
+--from: Teeaz
+--name: 
+--other, -o: []
+===
+{% extends 'message.md' %}
+{%block body %}
+Thanks for using {{name}}!
+{% if other %} 
+The following can be used together:
+{% for i in other %}
+- {{ i -}}
+{% endfor %}
+{% endif %}
+
+{% endblock %}
