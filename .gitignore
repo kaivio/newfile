@@ -1,3 +1,6 @@
+example/*.*
+
+
 .pdm.toml
 pdm.lock
 *.sw*

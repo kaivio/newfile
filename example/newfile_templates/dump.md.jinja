@@ -1,0 +1,24 @@
+===
+--title,-t: Dump Context
+--date: '{{now}}'
+===
+# {{ title }}
+- [Globals](#Globals)
+- [Filters](#Filters)
+
+## Global
+|name|value|
+|:---|:----|
+{%- for k,v in _tl_.env.globals.items() if k != '_tl_' %}
+|`{{k}}`|`{{ v | str }}`|
+{%- endfor %}
+
+## Filter
+|name|value|
+|:---|:----|
+{%- for k,v in _tl_.env.filters.items() %}
+|`{{k}}`|`{{ v | signature }}`|
+{%- endfor %}
+
+-----
+*date:* {{date}}
