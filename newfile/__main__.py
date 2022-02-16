@@ -19,7 +19,6 @@ install(show_locals=True,suppress=[jinja2,click])
 print = console.print
 
 def main():
-    show_path('/foo/bar','check')
     newfile()
 
 #PART: util
@@ -93,6 +92,8 @@ def load_template(name):
         f'{GITDIR}/newfile_templates/{name}',
         f'{HOMEDIR}/newfile_templates/{name}.jinja',
         f'{HOMEDIR}/newfile_templates/{name}',
+        f'{HOMEDIR}/.vim/bundle/vim-snippets/newfile_templates/{name}.jinja',
+        f'{HOMEDIR}/.vim/bundle/vim-snippets/newfile_templates/{name}',
         ]:
             _p = Path(i)
             if _p.exists():
