@@ -1,6 +1,7 @@
 import sys
 import re
 import argparse
+from pathlib import Path
 from datetime import datetime
 from inspect import signature
 
@@ -20,6 +21,35 @@ try:
 except:
     pass
 
+def main():
+    newfile()
+
+#PART: util
+
+def findup(dest,dir='.'):
+    if type(dest) not in (list,tuple):
+        dest = [dest]
+    
+    p = Path(dir).absolute()
+    res = None
+    for i in dest:
+        r = p.joinpath(i)
+        if r.exists():
+            res = r.absolute()
+            break
+
+    if not res and  str(p) != p.root:
+        res = findup(dest,p.parent)
+
+    return res
+
+
+#PART const define
+HOMEDIR = Path.home()
+GITDIR =  findup('.git') or '.'
+
+#PART: init
+
 template_catch = {}
 def load_template(name):
     if not name:
@@ -28,7 +58,27 @@ def load_template(name):
     if name in template_catch:
         return template_catch[name]['source']
 
-    p = f'newfile_templates/{name}.jinja'
+    p = findup([
+        f'newfile_templates/{name}.jinja',
+        f'newfile_templates/{name}',
+    ])
+
+    if not p:
+        for i in [
+        f'{GITDIR}/newfile_templates/{name}.jinja',
+        f'{GITDIR}/newfile_templates/{name}',
+        f'{HOMEDIR}/newfile_templates/{name}.jinja',
+        f'{HOMEDIR}/newfile_templates/{name}',
+        ]:
+            _p = Path(i)
+            if _p.exists():
+                p = _p
+                break
+        if not p:
+            raise FileNotFoundError(f"Template not found: '{name}'")
+
+    p = str(p)
+    print('load: '+show_path(p))
     with open(p) as f:
         source = f.read()
 
@@ -43,7 +93,6 @@ def load_template(name):
     template_catch[name] = data
     return data['source']
 
-### init jinja ### 
 tlenv = Environment(
 loader = FunctionLoader(load_template),
 autoescape = select_autoescape(),
@@ -93,7 +142,8 @@ def tlinspect(obj):
     inspect(obj)
     return ''
 tlfilter(str)
-# -- init jinja --
+
+#PART: pre/post process
 
 def preprocess_template(data): 
     s = data['source']
@@ -161,9 +211,6 @@ def preprocess_param(left,right,data):
     except argparse.ArgumentError as e:
         pass
 
-
-
-
 def post_args(args,opts):
     param = []
     for arg in args:
@@ -178,7 +225,6 @@ def post_args(args,opts):
             param.append(arg)
     
     return param
-
 
 
 def pull_args():
@@ -207,6 +253,8 @@ def inline_render(text):
     
     return text
 
+
+#PART: entry
 
 tlargparser = argparse.ArgumentParser(
     add_help=False
@@ -249,9 +297,17 @@ def entry(template,args,output=None):
         FILENAME=output,
     )
 
-    mode = setup.get('force',False) and 'x' or 'w'
-    with open(output,mode) as f:
+    mode = setup.get('force',False) and 'w' or 'x'
+    '''
+    try:
+        f = open(output,mode)
         f.write(rendered) 
+        print(f'{mode}: {output}')
+    except Exception as e:
+        print(e)
+    '''
+    with open(output,mode) as f:
+        f.write(rendered)
         print(f'{mode}: {output}')
 
     for i,o in setup.get('relate',{}).items():
@@ -264,10 +320,17 @@ def entry(template,args,output=None):
 })
 @click.argument('template')
 @click.argument('args',nargs=-1)
-def main(template,args,**opts):
+def newfile(template,args,**opts):
     entry(template,args)
     
     
+def show_path(p):
+    return p
+
 
 if '__main__' == __name__:
-    main()
+    try:
+        main()
+    except (FileNotFoundError,FileExistsError) as e:  
+        print(e)
+        sys.exit(1)
