@@ -11,17 +11,15 @@ import click
 import jinja2
 from jinja2 import Environment, FunctionLoader, select_autoescape
 
-try:
-    from rich.console import Console
-    from rich.traceback import install
-    from rich import inspect
-    console = Console()
-    install(show_locals=True,suppress=[jinja2,click])
-    print = console.print
-except:
-    pass
+from rich.console import Console
+from rich.traceback import install
+from rich import inspect
+console = Console()
+install(show_locals=True,suppress=[jinja2,click])
+print = console.print
 
 def main():
+    show_path('/foo/bar','check')
     newfile()
 
 #PART: util
@@ -44,11 +42,37 @@ def findup(dest,dir='.'):
     return res
 
 
-#PART const define
-HOMEDIR = Path.home()
-GITDIR =  findup('.git') or '.'
+def show_path(p,mode):
+    p = Path(p)
+    if p.is_absolute():
+        p = str(p)
+        cwd = str(Path.cwd()) 
+        git = GITDIR 
+        home = HOMEDIR
+        for k,v in {
+            str(Path.cwd()):'.',
+            str(GITDIR): '◆',
+            str(HOMEDIR): '~'
+        }.items():
+            if len(p) < len(k):
+                continue
+            prefix = p[:len(k)]
+            if prefix == k:
+                p = v+p[len(prefix):]
+                break
+        
+    title = {
+            'r':'[blue]load',
+            'w':'[yellow]write',
+            'x':'[green]create',
+            'a':'[green]append',
+    }.get(mode,f'[magenta]{mode}')
+    print(f'[bold]{title}[/bold]\t{p}')
 
 #PART: init
+
+HOMEDIR = Path.home()
+GITDIR =  (findup('.git') or Path('./x').absolute()).parent
 
 template_catch = {}
 def load_template(name):
@@ -78,7 +102,7 @@ def load_template(name):
             raise FileNotFoundError(f"Template not found: '{name}'")
 
     p = str(p)
-    print('load: '+show_path(p))
+    show_path(p,'r')
     with open(p) as f:
         source = f.read()
 
@@ -175,6 +199,7 @@ def preprocess_template(data):
                 preprocess_param (l,r,data)
 
 
+param_defined = set()
 def preprocess_param(left,right,data):
     args = []
     kwargs = argparse.Namespace()
@@ -185,6 +210,7 @@ def preprocess_param(left,right,data):
             continue
         if i[0] == '-':
             args.append(i)
+            param_defined.add(i)
         else:
             kwargs.help = i
     t = type(right)
@@ -257,9 +283,9 @@ def inline_render(text):
 #PART: entry
 
 tlargparser = argparse.ArgumentParser(
-    add_help=False
+    add_help=False,
+    allow_abbrev=False
 )
-tlargparser.add_argument('--help','-h','-?',action='store_true', help='display help of template')
 
 def entry(template,args,output=None):
     tlctx['parser'] = tlargparser
@@ -278,37 +304,50 @@ def entry(template,args,output=None):
     tlhandle = tlenv.get_template(template)
 
     tlargparser.parse_known_args(args)
+
     # pre-process
     pull_args()
     tlhandle.render()
+    try:
+      tlargparser.add_argument(
+        '--help',
+        *{'-h'}-param_defined,'-?',
+        action='store_true',
+        default=False,
+        help='display help of template'
+      )
+      tlargparser.add_argument(
+        '--force',
+        *{'-f'}-param_defined,
+        action='store_true',
+        default=False,
+        help='force overwrite output file'
+      )
+    except argparse.ArgumentError:
+        pass
+
     pull_args()
 
     setup = inline_render(setup)
     setup = yaml.load(setup)
     if type(setup) != dict:
         setup = {}
-    if tlctx['opts']['help']:
+
+    opts = tlctx['opts']
+    if opts['help']:
         tlargparser.print_help()
         return
-
+    
     output = output or setup.get('output',template)
 
     rendered = tlhandle.render(
         FILENAME=output,
     )
 
-    mode = setup.get('force',False) and 'w' or 'x'
-    '''
-    try:
-        f = open(output,mode)
-        f.write(rendered) 
-        print(f'{mode}: {output}')
-    except Exception as e:
-        print(e)
-    '''
+    mode = setup.get('force',opts['force']) and 'w' or 'x'
     with open(output,mode) as f:
         f.write(rendered)
-        print(f'{mode}: {output}')
+        show_path(output,mode)
 
     for i,o in setup.get('relate',{}).items():
         entry(i,args,o)
@@ -324,13 +363,15 @@ def newfile(template,args,**opts):
     entry(template,args)
     
     
-def show_path(p):
-    return p
 
 
 if '__main__' == __name__:
     try:
         main()
-    except (FileNotFoundError,FileExistsError) as e:  
+    except FileNotFoundError as e:  
         print(e)
+        sys.exit(1)
+    except FileExistsError as e:
+        print(e)
+        print('Hint: overwrite file with flag --force')
         sys.exit(1)
